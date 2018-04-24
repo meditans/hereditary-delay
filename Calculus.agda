@@ -17,6 +17,7 @@ open import Relation.Nullary
   using (Dec;yes;no)
 open import Relation.Nullary.Decidable
   using (⌊_⌋)
+open import Delay
 
 --------------------------------------------------------------------------------
 -- Types, Contexts and Variables
@@ -276,13 +277,13 @@ data Tm (Ψ Γ : Con) : (a : Ty) → Set where
   Λ   : ∀ {a b} → Tm Ψ (Γ , a) b → Tm Ψ Γ (a ⇒ b)
   app : ∀ {a b} → Tm Ψ Γ (a ⇒ b) → Tm Ψ Γ a → Tm Ψ Γ b
 
-annotate : ∀{Ψ Γ a} → Tm Ψ Γ a → ■L Γ
-annotate (var x)     = [ (_ , x) ]
-annotate (con x)     = []
-annotate (Λ t)       = (annotate t) ⊟ vz
-annotate (app t₁ t₂) = annotate t₁ ++ annotate t₂
+annotation : ∀{Ψ Γ a} → Tm Ψ Γ a → ■L Γ
+annotation (var x)     = [ (_ , x) ]
+annotation (con x)     = []
+annotation (Λ t)       = annotation t ⊟ vz
+annotation (app t₁ t₂) = annotation t₁ ++ annotation t₂
 
-nf : ∀ {Ψ Γ a} → (t : Tm Ψ Γ a) → Nf Ψ Γ (annotate t) a
+nf : ∀ {Ψ Γ a} → (t : Tm Ψ Γ a) → Nf Ψ Γ (annotation t) a
 nf (var x)   = nvar x
 nf (con x)   = ncon x
 nf (Λ t)     = λn (nf t)
