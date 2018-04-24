@@ -97,14 +97,26 @@ _⊟_ (v₂ ∷ l) v₁  =  fromMaybe (mapMaybe ,_ (wkv⁻¹ v₁ (proj₂ v₂)
 
 ⊟-assoc : ∀{Γ a}(v : Var Γ a)(l₁ l₂ l₃ : ■L Γ)
         → ((l₁ ++ l₂) ++ l₃) ⊟ v  ≡ (l₁ ++ l₂ ++ l₃) ⊟ v
-⊟-assoc v [] l₂ l₃ = refl
-⊟-assoc v (x ∷ l₁) l₂ l₃ = cong₂ _++_ {fromMaybe (mapMaybe ,_ (wkv⁻¹ v (proj₂ x)))} refl (⊟-assoc v l₁ l₂ l₃)
+⊟-assoc v [] l₂ l₃       = refl
+⊟-assoc v (x ∷ l₁) l₂ l₃ =
+  cong₂
+    _++_
+    {fromMaybe (mapMaybe ,_ (wkv⁻¹ v (proj₂ x)))}
+    refl
+    (⊟-assoc v l₁ l₂ l₃)
 
 ⊟-distrib : ∀{Γ a}(v : Var Γ a)(l₁ l₂ : ■L Γ)
           → (l₁ ++ l₂) ⊟ v ≡ l₁ ⊟ v ++ l₂ ⊟ v
 ⊟-distrib v [] l₂       = refl
-⊟-distrib v (x ∷ l₁) l₂ rewrite ++-assoc (fromMaybe (mapMaybe ,_ (wkv⁻¹ v (proj₂ x)))) (l₁ ⊟ v) (l₂ ⊟ v)
-  = cong₂ _++_ {fromMaybe (maybe (λ x₁ → just (proj₁ x , x₁)) nothing (wkv⁻¹ v (proj₂ x)))} refl (⊟-distrib v l₁ l₂)
+⊟-distrib v (x ∷ l₁) l₂ rewrite ++-assoc
+                                (fromMaybe (mapMaybe ,_ (wkv⁻¹ v (proj₂ x))))
+                                (l₁ ⊟ v)
+                                (l₂ ⊟ v)
+  = cong₂
+      _++_
+      {fromMaybe (maybe (λ x₁ → just (proj₁ x , x₁)) nothing (wkv⁻¹ v (proj₂ x)))}
+      refl
+      (⊟-distrib v l₁ l₂)
 
 ⊟/⊟ : ∀{a Γ a₁}(v : Var Γ a₁)(l : ■L (Γ , a))
     → (l ⊟ vs v) ⊟ vz  ≡  (l ⊟ vz) ⊟ v
@@ -112,7 +124,8 @@ _⊟_ (v₂ ∷ l) v₁  =  fromMaybe (mapMaybe ,_ (wkv⁻¹ v₁ (proj₂ v₂)
 ⊟/⊟ v ((_ , vz)   ∷ l) = ⊟/⊟ v l
 ⊟/⊟ v ((_ , vs x) ∷ l) with eq v x
 ⊟/⊟ v ((_ , vs .v) ∷ l) | same rewrite wkv⁻¹-same v = ⊟/⊟ v l
-⊟/⊟ v ((a , vs .(wkv v y)) ∷ l) | diff .v y rewrite wkv⁻¹∘wkv v y = cong₂ _∷_ {(a , y)} refl (⊟/⊟ v l)
+⊟/⊟ v ((a , vs .(wkv v y)) ∷ l) | diff .v y rewrite wkv⁻¹∘wkv v y =
+  cong₂ _∷_ {(a , y)} refl (⊟/⊟ v l)
 
 --------------------------------------------------------------------------------
 -- The set of normal forms
@@ -125,11 +138,12 @@ mutual
   data Head (Ψ Γ : Con) : (l : ■L Γ) (a : Ty) → Set where
     var   : ∀{a} (v : Var Γ a) → Head Ψ Γ [(_ , v)] a
     con   : ∀{a} (c : Var Ψ a) → Head Ψ Γ [] a
-    app■  : ∀{a b l₁ l₂}(n₁ : Nf Ψ Γ l₁ (a ⇒ b))(n₂ : Nf Ψ Γ l₂ a) → Head Ψ Γ (l₁ ++ l₂) b
+    app■  : ∀{a b l₁ l₂}(n₁ : Nf Ψ Γ l₁ (a ⇒ b))(n₂ : Nf Ψ Γ l₂ a)
+          → Head Ψ Γ (l₁ ++ l₂) b
 
   data Sp (Ψ Γ : Con) : (l : ■L Γ) → Ty → Ty → Set where
-    ε   : ∀ {a} → Sp Ψ Γ [] a a
-    _,_ : ∀ {a b c l₁ l₂} → Nf Ψ Γ l₁ b → Sp Ψ Γ l₂ a c → Sp Ψ Γ (l₁ ++ l₂) (b ⇒ a) c
+    ε   : ∀ {a}                                        → Sp Ψ Γ []         a       a
+    _,_ : ∀{a b c l₁ l₂} → Nf Ψ Γ l₁ b → Sp Ψ Γ l₂ a c → Sp Ψ Γ (l₁ ++ l₂) (b ⇒ a) c
 
 --------------------------------------------------------------------------------
 -- Weakening for existential variables, list, and normal forms
@@ -165,14 +179,32 @@ mutual
   wkSp :  ∀{Ψ Γ a b c}(v : Var Γ a){l : ■L (Γ - v)}
        → Sp Ψ (Γ - v) l b c → Sp Ψ Γ (wk■L v l) b c
   wkSp v ε = ε
-  wkSp v (_,_ {l₁ = l₁} {l₂ = l₂} n S) rewrite ((map-++-commute (wk∃v v) l₁ l₂)) = wkNf v n , wkSp v S
+  wkSp v (_,_ {l₁ = l₁} {l₂ = l₂} n S)
+    rewrite ((map-++-commute (wk∃v v) l₁ l₂)) =
+      wkNf v n , wkSp v S
+
+--------------------------------------------------------------------------------
+-- Utilities for the interpretation functions
+--------------------------------------------------------------------------------
+infixr 1 _fixing■L-Nf_
+_fixing■L-Nf_ : ∀{Ψ Γ l₁ l₂ a} → Nf Ψ Γ l₁ a → l₁ ≡ l₂ → Nf Ψ Γ l₂ a
+n fixing■L-Nf p = subst (λ l → Nf _ _ l _) p n
+
+infixr 1 _fixing■L-Sp_
+_fixing■L-Sp_ : ∀{Ψ Γ l₁ l₂ a b} → Sp Ψ Γ l₁ a b → l₁ ≡ l₂ → Sp Ψ Γ l₂ a b
+n fixing■L-Sp p = subst (λ l → Sp _ _ l _ _) p n
 
 --------------------------------------------------------------------------------
 -- Interpretation functions
 --------------------------------------------------------------------------------
-appSp : ∀ {Ψ Γ l₁ l₂ a b c} → Sp Ψ Γ l₁ c (a ⇒ b) → Nf Ψ Γ l₂ a → Sp Ψ Γ (l₁ ++ l₂) c b
-appSp {l₂ = l₂} {b = b} ε u                    = subst (λ t → Sp _ _ t _ _) (++-identityʳ l₂)         (u , ε)
-appSp {l₂ = l₃} (_,_ {l₁ = l₁}{l₂ = l₂} n S) u = subst (λ t → Sp _ _ t _ _) (sym (++-assoc l₁ l₂ l₃)) (n , appSp S u)
+appSp : ∀ {Ψ Γ l₁ l₂ a b c}
+      → Sp Ψ Γ l₁ c (a ⇒ b) → Nf Ψ Γ l₂ a → Sp Ψ Γ (l₁ ++ l₂) c b
+appSp {l₂ = l₂} {b = b} ε u =
+  (u , ε)
+  fixing■L-Sp ++-identityʳ l₂
+appSp {l₂ = l₃} (_,_ {l₁ = l₁}{l₂ = l₂} n S) u =
+  (n , appSp S u)
+  fixing■L-Sp sym (++-assoc l₁ l₂ l₃)
 
 nvar : ∀ {Ψ Γ a} → (v : Var Γ a) → Nf Ψ Γ [ (_ , v) ] a
 nvar x = ne (var x) ε
@@ -182,45 +214,58 @@ ncon x = ne (con x) ε
 
 {-# TERMINATING #-}
 mutual
-  napp : ∀ {Ψ Γ l₁ l₂ b a} → Nf Ψ Γ l₁ (a ⇒ b) → Nf Ψ Γ l₂ a → Nf Ψ Γ (l₁ ++ l₂) b
-  napp {l₁ = l₁} {l₂ = l₂} n₁ n₂ with empty? l₁ | empty? l₂
-  napp {l₁ = l₁} {.[]} (λn {l₁ = li₁} n₁)              n₂   | yes p | yes refl =
-    subst (λ l → Nf _ _ l _) (sym (++-identityʳ (li₁ ⊟ vz))) (n₁ [ vz := n₂ ])
-  napp {l₁ = l₁} {.[]} (ne {l₁ = li₁} {l₂ = li₂} x sp) n₂ | yes p | yes refl =
-    subst (λ l → Nf _ _ l _) (sym (++-assoc li₁ li₂ [])) (ne x (appSp sp n₂))
-  napp {l₁ = l₁} {l₂} n₁ n₂ | yes p | no ¬p =
-    subst (λ l → Nf _ _ l _) (++-identityʳ (l₁ ++ l₂)) (ne (app■ n₁ n₂) ε)
-  napp {l₁ = l₁} {l₂} n₁ n₂ | no ¬p | b =
-    subst (λ l → Nf _ _ l _) (++-identityʳ (l₁ ++ l₂)) (ne (app■ n₁ n₂) ε)
+  napp : ∀ {Ψ Γ l₁ l₂ b a}
+       → Nf Ψ Γ l₁ (a ⇒ b) → Nf Ψ Γ l₂ a → Nf Ψ Γ (l₁ ++ l₂) b
+  napp {l₁ = l₁} {l₂ = l₂} n₁ n₂                     with empty? l₁ | empty? l₂
+  napp {l₁ = l₁} {.[]} (λn {l₁ = li₁} n₁) n₂              | yes p   | yes refl =
+    n₁ [ vz := n₂ ]
+    fixing■L-Nf (sym (++-identityʳ (li₁ ⊟ vz)))
+  napp {l₁ = l₁} {.[]} (ne {l₁ = li₁} {l₂ = li₂} x sp) n₂ | yes p   | yes refl =
+    ne x (appSp sp n₂)
+    fixing■L-Nf (sym (++-assoc li₁ li₂ []))
+  napp {l₁ = l₁} {l₂} n₁ n₂                               | yes p   | no ¬p =
+    ne (app■ n₁ n₂) ε
+    fixing■L-Nf (++-identityʳ (l₁ ++ l₂))
+  napp {l₁ = l₁} {l₂} n₁ n₂                               | no ¬p   | b =
+    ne (app■ n₁ n₂) ε
+    fixing■L-Nf (++-identityʳ (l₁ ++ l₂))
 
   _[_:=_] : ∀ {Ψ Γ l₁ a b}
-    → (Nf Ψ Γ l₁ b) → (x : Var Γ a) → Nf Ψ (Γ - x) [] a → Nf Ψ (Γ - x) (l₁ ⊟ x) b
-  _[_:=_] (λn {l₁ = l₁} n) x u = subst (λ t → Nf _ _ t _) (⊟/⊟ x l₁) (λn (n [ vs x := wkNf vz u ]))
-  ne (var v) sp [ x := u ] with eq x v
-  ne (var v) sp [ .v := u ]         | same rewrite (wkv⁻¹-same v) = u ◇ (sp < v := u >)
-  ne (var .(wkv x y)) sp [ x := u ] | diff .x y rewrite (wkv⁻¹∘wkv x y) = ne (var y) (sp < x := u >)
-  ne (con c) sp [ x := u ] = ne (con c) (sp < x := u >)
+    → (Nf Ψ Γ l₁ b) → (x : Var Γ a) → Nf Ψ (Γ - x) [] a
+    → Nf Ψ (Γ - x) (l₁ ⊟ x) b
+  λn {l₁ = l₁} n [ x := u ] = λn (n [ vs x := wkNf vz u ]) fixing■L-Nf (⊟/⊟ x l₁)
+  ne (var v) sp [ x := u ]     with eq x v
+  ne (var v) sp [ .v := u ]         | same      rewrite (wkv⁻¹-same v)  =
+    u ◇ (sp < v := u >)
+  ne (var .(wkv x y)) sp [ x := u ] | diff .x y rewrite (wkv⁻¹∘wkv x y) =
+    ne (var y) (sp < x := u >)
+  ne (con c) sp [ x := u ] =
+    ne (con c) (sp < x := u >)
   ne {l₂ = l₃} (app■ {l₁ = l₁} {l₂} n₁ n₂) sp [ x := u ] =
-    subst (λ l → Nf _ _ l _)
-             (sym (begin
-             ((l₁ ++ l₂) ++ l₃) ⊟ x  ≡⟨ ⊟-distrib x (l₁ ++ l₂) l₃ ⟩
-             (l₁ ++ l₂) ⊟ x  ++ l₃ ⊟ x ≡⟨ cong (λ t → t ++ l₃ ⊟ x) (⊟-distrib x l₁ l₂) ⟩
-             (l₁ ⊟ x ++  l₂ ⊟ x) ++ l₃ ⊟ x  ≡⟨ ++-assoc ( l₁ ⊟ x) _ _ ⟩
-             l₁ ⊟ x ++ l₂ ⊟ x ++ l₃ ⊟ x
-             ∎
-             ))
-             ((n₁ [ x := u ]) ◇ (n₂ [ x := u ] , sp < x := u >))
-     where open ≡-Reasoning
+    (n₁ [ x := u ]) ◇ (n₂ [ x := u ] , sp < x := u >)
+    fixing■L-Nf sym (begin
+      ((l₁ ++ l₂) ++ l₃) ⊟ x        ≡⟨ ⊟-distrib x (l₁ ++ l₂) l₃ ⟩
+      (l₁ ++ l₂) ⊟ x  ++ l₃ ⊟ x     ≡⟨ cong (λ t → t ++ l₃ ⊟ x) (⊟-distrib x l₁ l₂) ⟩
+      (l₁ ⊟ x ++  l₂ ⊟ x) ++ l₃ ⊟ x ≡⟨ ++-assoc ( l₁ ⊟ x) _ _ ⟩
+      l₁ ⊟ x ++ l₂ ⊟ x ++ l₃ ⊟ x
+      ∎)
+    where open ≡-Reasoning
 
   _<_:=_> : ∀ {Ψ Γ l₁ a b c}
           → (Sp Ψ Γ l₁ b c) → (x : Var Γ a) → Nf Ψ (Γ - x) [] a
           → Sp Ψ (Γ - x) (l₁ ⊟ x) b c
   ε < x := u > = ε
-  (_,_ {l₁ = l₁} {l₂} n sp) < x := u > = subst (λ l → Sp _ _ l _ _) (sym (⊟-distrib x l₁ l₂)) (n [ x := u ] , sp < x := u >)
+  (_,_ {l₁ = l₁} {l₂} n sp) < x := u > =
+    n [ x := u ] , sp < x := u >
+    fixing■L-Sp (sym (⊟-distrib x l₁ l₂))
 
   _◇_ : ∀ {Ψ Γ a b l₁ l₂} → Nf Ψ Γ l₁ a → Sp Ψ Γ l₂ a b → Nf Ψ Γ (l₁ ++ l₂) b
-  n ◇ ε        = subst (λ l → Nf _ _ l _) (sym (++-identityʳ _)) n
-  _◇_ {l₁ = l₁} n₁ (_,_ {l₁ = l₂} {l₂ = l₃} n₂ sp) = subst (λ l → Nf _ _ l _) (++-assoc l₁ l₂ l₃) ((napp n₁ n₂) ◇ sp)
+  n ◇ ε        =
+    n
+    fixing■L-Nf sym (++-identityʳ _)
+  _◇_ {l₁ = l₁} n₁ (_,_ {l₁ = l₂} {l₂ = l₃} n₂ sp) =
+    (napp n₁ n₂) ◇ sp
+    fixing■L-Nf ++-assoc l₁ l₂ l₃
 
 --------------------------------------------------------------------------------
 -- Terms and normalizer
