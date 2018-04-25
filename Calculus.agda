@@ -191,9 +191,17 @@ infixr 1 _fixing■L-Nf_
 _fixing■L-Nf_ : ∀{Ψ Γ l₁ l₂ a} → Nf Ψ Γ l₁ a → l₁ ≡ l₂ → Nf Ψ Γ l₂ a
 n fixing■L-Nf p = subst (λ l → Nf _ _ l _) p n
 
+infixr 1 _fixing■L-Nf'_
+_fixing■L-Nf'_ : ∀{i Ψ Γ l₁ l₂ a} → Delay i (Nf Ψ Γ l₁ a) → l₁ ≡ l₂ → Delay i (Nf Ψ Γ l₂ a)
+n fixing■L-Nf' p = subst (λ l → Nf _ _ l _) p <$> n
+
 infixr 1 _fixing■L-Sp_
 _fixing■L-Sp_ : ∀{Ψ Γ l₁ l₂ a b} → Sp Ψ Γ l₁ a b → l₁ ≡ l₂ → Sp Ψ Γ l₂ a b
 n fixing■L-Sp p = subst (λ l → Sp _ _ l _ _) p n
+
+infixr 1 _fixing■L-Sp'_
+_fixing■L-Sp'_ : ∀{i Ψ Γ l₁ l₂ a b} → Delay i (Sp Ψ Γ l₁ a b) → l₁ ≡ l₂ → Delay i (Sp Ψ Γ l₂ a b)
+n fixing■L-Sp' p = subst (λ l → Sp _ _ l _ _) p <$> n
 
 --------------------------------------------------------------------------------
 -- Interpretation functions
@@ -213,38 +221,39 @@ nvar x = ne (var x) ε
 ncon : ∀ {Ψ Γ a} → Var Ψ a → Nf Ψ Γ [] a
 ncon x = ne (con x) ε
 
-{-# TERMINATING #-}
+-- {-# TERMINATING #-}
 mutual
-  napp : ∀ {Ψ Γ l₁ l₂ b a}
-       → Nf Ψ Γ l₁ (a ⇒ b) → Nf Ψ Γ l₂ a → Nf Ψ Γ (l₁ ++ l₂) b
+  napp : ∀ {i Ψ Γ l₁ l₂ b a}
+       → Nf Ψ Γ l₁ (a ⇒ b) → Nf Ψ Γ l₂ a
+       → Delay i (Nf Ψ Γ (l₁ ++ l₂) b)
   napp {l₁ = l₁} {l₂ = l₂} n₁ n₂                     with empty? l₁ | empty? l₂
   napp {l₁ = l₁} {.[]} (λn {l₁ = li₁} n₁) n₂              | yes p   | yes refl =
-    n₁ [ vz := n₂ ]
-    fixing■L-Nf (sym (++-identityʳ (li₁ ⊟ vz)))
+    later (n₁ [ vz := n₂ ])
+    fixing■L-Nf' (sym (++-identityʳ (li₁ ⊟ vz)))
   napp {l₁ = l₁} {.[]} (ne {l₁ = li₁} {l₂ = li₂} x sp) n₂ | yes p   | yes refl =
-    ne x (appSp sp n₂)
-    fixing■L-Nf (sym (++-assoc li₁ li₂ []))
+    now (ne x (appSp sp n₂))
+    fixing■L-Nf' (sym (++-assoc li₁ li₂ []))
   napp {l₁ = l₁} {l₂} n₁ n₂                               | yes p   | no ¬p =
-    ne (app■ n₁ n₂) ε
-    fixing■L-Nf (++-identityʳ (l₁ ++ l₂))
+    now (ne (app■ n₁ n₂) ε)
+    fixing■L-Nf' (++-identityʳ (l₁ ++ l₂))
   napp {l₁ = l₁} {l₂} n₁ n₂                               | no ¬p   | b =
-    ne (app■ n₁ n₂) ε
-    fixing■L-Nf (++-identityʳ (l₁ ++ l₂))
+    now (ne (app■ n₁ n₂) ε)
+    fixing■L-Nf' (++-identityʳ (l₁ ++ l₂))
 
-  _[_:=_] : ∀ {Ψ Γ l₁ a b}
+  _[_:=_] : ∀ {i Ψ Γ l₁ a b}
     → (Nf Ψ Γ l₁ b) → (x : Var Γ a) → Nf Ψ (Γ - x) [] a
-    → Nf Ψ (Γ - x) (l₁ ⊟ x) b
-  λn {l₁ = l₁} n [ x := u ] = λn (n [ vs x := wkNf vz u ]) fixing■L-Nf (⊟/⊟ x l₁)
-  ne (var v) sp [ x := u ]     with eq x v
-  ne (var v) sp [ .v := u ]         | same      rewrite (wkv⁻¹-same v)  =
-    u ◇ (sp < v := u >)
-  ne (var .(wkv x y)) sp [ x := u ] | diff .x y rewrite (wkv⁻¹∘wkv x y) =
-    ne (var y) (sp < x := u >)
-  ne (con c) sp [ x := u ] =
-    ne (con c) (sp < x := u >)
-  ne {l₂ = l₃} (app■ {l₁ = l₁} {l₂} n₁ n₂) sp [ x := u ] =
-    (n₁ [ x := u ]) ◇ (n₂ [ x := u ] , sp < x := u >)
-    fixing■L-Nf sym (begin
+    → ∞Delay i (Nf Ψ (Γ - x) (l₁ ⊟ x) b)
+  force (λn {l₁ = l₁} n [ x := u ]) = λn <$> (later (n [ vs x := wkNf vz u ])) fixing■L-Nf' (⊟/⊟ x l₁)
+  force (ne (var v) sp [ x := u ])     with eq x v
+  force (ne (var v) sp [ .v := u ])         | same      rewrite (wkv⁻¹-same v)  =
+     (u ◇_) =<< (sp < v := u >)
+  force (ne (var .(wkv x y)) sp [ x := u ]) | diff .x y rewrite (wkv⁻¹∘wkv x y) =
+    ne (var y) <$> (sp < x := u >)
+  force (ne (con c) sp [ x := u ]) =
+    ne (con c) <$> (sp < x := u >)
+  force (ne {l₂ = l₃} (app■ {l₁ = l₁} {l₂} n₁ n₂) sp [ x := u ]) =
+    (later (n₁ [ x := u ]) >>= λ n₁' → later (n₂ [ x := u ]) >>= λ n₂' → sp < x := u > >>= λ sp' → n₁' ◇ (n₂' , sp'))
+    fixing■L-Nf' sym (begin
       ((l₁ ++ l₂) ++ l₃) ⊟ x        ≡⟨ ⊟-distrib x (l₁ ++ l₂) l₃ ⟩
       (l₁ ++ l₂) ⊟ x  ++ l₃ ⊟ x     ≡⟨ cong (λ t → t ++ l₃ ⊟ x) (⊟-distrib x l₁ l₂) ⟩
       (l₁ ⊟ x ++  l₂ ⊟ x) ++ l₃ ⊟ x ≡⟨ ++-assoc ( l₁ ⊟ x) _ _ ⟩
@@ -252,21 +261,22 @@ mutual
       ∎)
     where open ≡-Reasoning
 
-  _<_:=_> : ∀ {Ψ Γ l₁ a b c}
+  _<_:=_> : ∀ {i Ψ Γ l₁ a b c}
           → (Sp Ψ Γ l₁ b c) → (x : Var Γ a) → Nf Ψ (Γ - x) [] a
-          → Sp Ψ (Γ - x) (l₁ ⊟ x) b c
-  ε < x := u > = ε
+          → Delay i (Sp Ψ (Γ - x) (l₁ ⊟ x) b c)
+  ε < x := u > = now ε
   (_,_ {l₁ = l₁} {l₂} n sp) < x := u > =
-    n [ x := u ] , sp < x := u >
-    fixing■L-Sp (sym (⊟-distrib x l₁ l₂))
+    (later (n [ x := u ]) >>= λ n' → sp < x := u > >>= λ sp' → now (n' , sp'))
+    fixing■L-Sp' (sym (⊟-distrib x l₁ l₂))
 
-  _◇_ : ∀ {Ψ Γ a b l₁ l₂} → Nf Ψ Γ l₁ a → Sp Ψ Γ l₂ a b → Nf Ψ Γ (l₁ ++ l₂) b
+  _◇_ : ∀ {i Ψ Γ a b l₁ l₂} → Nf Ψ Γ l₁ a → Sp Ψ Γ l₂ a b
+      → Delay i (Nf Ψ Γ (l₁ ++ l₂) b)
   n ◇ ε        =
-    n
-    fixing■L-Nf sym (++-identityʳ _)
+    now n
+    fixing■L-Nf' sym (++-identityʳ _)
   _◇_ {l₁ = l₁} n₁ (_,_ {l₁ = l₂} {l₂ = l₃} n₂ sp) =
-    (napp n₁ n₂) ◇ sp
-    fixing■L-Nf ++-assoc l₁ l₂ l₃
+    (napp n₁ n₂ >>= (_◇ sp))
+    fixing■L-Nf' ++-assoc l₁ l₂ l₃
 
 --------------------------------------------------------------------------------
 -- Terms and normalizer
@@ -283,11 +293,11 @@ annotation (con x)     = []
 annotation (Λ t)       = annotation t ⊟ vz
 annotation (app t₁ t₂) = annotation t₁ ++ annotation t₂
 
-nf : ∀ {Ψ Γ a} → (t : Tm Ψ Γ a) → Nf Ψ Γ (annotation t) a
-nf (var x)   = nvar x
-nf (con x)   = ncon x
-nf (Λ t)     = λn (nf t)
-nf (app t u) = napp (nf t) (nf u)
+nf : ∀ {i Ψ Γ a} → (t : Tm Ψ Γ a) → Delay i (Nf Ψ Γ (annotation t) a)
+nf (var x)   = now (nvar x)
+nf (con x)   = now (ncon x)
+nf (Λ t)     = λn <$> (nf t)
+nf (app t u) = nf t >>= λ t' → nf u >>= λ u' → napp t' u'
 
 --------------------------------------------------------------------------------
 -- Embeddings
@@ -356,5 +366,5 @@ ex5 = app (Λ (Λ (con vz))) (con (vs vz))
 ex6 : Tm (ε , ○) ε (○ ⇒ ○)
 ex6 = Λ (app (Λ (app (Λ (var vz)) (var vz))) (con vz))
 
-roundtrip : ∀{Ψ Γ a} → Tm Ψ Γ a → Tm Ψ Γ a
-roundtrip ex = ⌈ nf ex ⌉
+roundtrip : ∀{i Ψ Γ a} → Tm Ψ Γ a → Delay i (Tm Ψ Γ a)
+roundtrip ex = ⌈_⌉ <$> nf ex
